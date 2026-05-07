@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# old folder
+old/
+
+.ipynb_checkpoints/
+
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# MyPy
+.mypy_cache/
+
+# UV specific
+uv.lock  # opcjonalnie - często commituje się lock file
+
+# OS
+.DS_Store
+Thumbs.db
