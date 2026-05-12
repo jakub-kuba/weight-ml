@@ -7,13 +7,10 @@ variables:
   IMAGE_API: $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHORT_SHA
   IMAGE_DASHBOARD: $CI_REGISTRY_IMAGE/dashboard:$CI_COMMIT_SHORT_SHA
 
-# ---------------------------------------------------------------------------
-# Stage 1: test — runs on every push
-# ---------------------------------------------------------------------------
 test:
+  stage: test
   tags:
     - saas-linux-small-amd64
-  stage: test
   image: python:3.12-slim
   before_script:
     - pip install uv --quiet
@@ -26,13 +23,10 @@ test:
     paths:
       - .venv/
 
-# ---------------------------------------------------------------------------
-# Stage 2: build — only on main branch and merge requests
-# ---------------------------------------------------------------------------
 build-api:
+  stage: build
   tags:
     - saas-linux-small-amd64
-  stage: build
   image: docker:24
   services:
     - docker:24-dind
@@ -47,9 +41,9 @@ build-api:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 build-dashboard:
+  stage: build
   tags:
     - saas-linux-small-amd64
-  stage: build
   image: docker:24
   services:
     - docker:24-dind
@@ -63,13 +57,10 @@ build-dashboard:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# ---------------------------------------------------------------------------
-# Stage 3: deploy — manual trigger on main branch
-# ---------------------------------------------------------------------------
 deploy:
+  stage: deploy
   tags:
     - saas-linux-small-amd64
-  stage: deploy
   image: alpine:latest
   script:
     - echo "Image $IMAGE_API pushed to registry"
