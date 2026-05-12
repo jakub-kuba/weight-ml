@@ -10,9 +10,11 @@ MagicMock behaves like a real model but always returns a fixed value,
 so tests run in milliseconds and need no internet connection.
 """
 
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
+
 from src.models.predictor import predict_next_month, predict_next_week
 
 
@@ -39,7 +41,11 @@ class TestPredictNextMonth:
         })
         result = predict_next_month(models, df)
 
-        assert set(result.keys()) == {"linear_regression", "gradient_boosting", "xgboost"}
+        assert set(result.keys()) == {
+            "linear_regression",
+            "gradient_boosting",
+            "xgboost",
+        }
         assert result["linear_regression"] == pytest.approx(85.0)
 
     def test_predictions_are_rounded_to_2_decimals(self):
@@ -53,7 +59,9 @@ class TestPredictNextMonth:
         })
         result = predict_next_month(models, df)
         # verify result has at most 2 decimal places
-        assert result["linear_regression"] == round(result["linear_regression"], 2)
+        assert result["linear_regression"] == round(
+            result["linear_regression"], 2
+        )
 
 
 class TestPredictNextWeek:

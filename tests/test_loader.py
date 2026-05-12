@@ -6,8 +6,8 @@ We use small synthetic DataFrames — tests are fast and deterministic.
 """
 
 import pandas as pd
-import numpy as np
 import pytest
+
 from src.data.loader import clean_weight_column
 
 
