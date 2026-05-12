@@ -1,77 +1,43 @@
-# GitLab CI/CD pipeline — runs automatically on every push.
-#
-# Three stages in order:
-#   test    → run pytest and linting (fast feedback, no Docker needed)
-#   build   → build and push Docker images to GitLab Container Registry
-#   deploy  → placeholder for future deployment (Azure / Kubernetes)
-#
-# Each stage only runs if the previous one passed.
-# This means a failing test blocks the Docker build — exactly what we want.
-
 stages:
   - test
   - build
   - deploy
 
-# ---------------------------------------------------------------------------
-# Global variables available in all jobs
-# ---------------------------------------------------------------------------
 variables:
-  # GitLab Container Registry — every GitLab project gets one for free.
-  # CI_REGISTRY_IMAGE is set automatically by GitLab to:
-  # registry.gitlab.com/<your-username>/<your-project>
   IMAGE_API: $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHORT_SHA
   IMAGE_DASHBOARD: $CI_REGISTRY_IMAGE/dashboard:$CI_COMMIT_SHORT_SHA
 
 # ---------------------------------------------------------------------------
-# Stage 1: test
+# Stage 1: test — runs on every push
 # ---------------------------------------------------------------------------
 test:
   stage: test
   image: python:3.12-slim
-
   before_script:
-    # Install uv — same tool we use locally
     - pip install uv --quiet
-    # Install all dependencies including dev (pytest, ruff)
     - uv sync --frozen
-
   script:
-    # Run linter first — fast, catches obvious issues
     - uv run ruff check src/ tests/
-    # Run tests with coverage report
     - uv run pytest tests/ -v --tb=short
-
-  # Cache the virtual environment between runs — speeds up subsequent pipelines
   cache:
     key: "$CI_COMMIT_REF_SLUG-uv"
     paths:
       - .venv/
 
 # ---------------------------------------------------------------------------
-# Stage 2: build
+# Stage 2: build — only on main branch and merge requests
 # ---------------------------------------------------------------------------
 build-api:
   stage: build
   image: docker:24
   services:
-    - docker:24-dind           # Docker-in-Docker — allows building images in CI
-
+    - docker:24-dind
   before_script:
-    # Log in to GitLab Container Registry using CI-provided credentials
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-
   script:
     - docker build -f docker/Dockerfile.api -t $IMAGE_API .
     - docker push $IMAGE_API
-    # Also tag as 'latest' on main branch
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker tag $IMAGE_API $CI_REGISTRY_IMAGE/api:latest
-        docker push $CI_REGISTRY_IMAGE/api:latest
-      fi
-
-  # Only build on main branch and merge requests — not on every feature branch
+    - if [ "$CI_COMMIT_BRANCH" = "main" ]; then docker tag $IMAGE_API $CI_REGISTRY_IMAGE/api:latest && docker push $CI_REGISTRY_IMAGE/api:latest; fi
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -81,40 +47,25 @@ build-dashboard:
   image: docker:24
   services:
     - docker:24-dind
-
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-
   script:
     - docker build -f docker/Dockerfile.dashboard -t $IMAGE_DASHBOARD .
     - docker push $IMAGE_DASHBOARD
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker tag $IMAGE_DASHBOARD $CI_REGISTRY_IMAGE/dashboard:latest
-        docker push $CI_REGISTRY_IMAGE/dashboard:latest
-      fi
-
+    - if [ "$CI_COMMIT_BRANCH" = "main" ]; then docker tag $IMAGE_DASHBOARD $CI_REGISTRY_IMAGE/dashboard:latest && docker push $CI_REGISTRY_IMAGE/dashboard:latest; fi
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # ---------------------------------------------------------------------------
-# Stage 3: deploy (placeholder)
+# Stage 3: deploy — manual trigger on main branch
 # ---------------------------------------------------------------------------
 deploy:
   stage: deploy
   image: alpine:latest
-
   script:
-    # Placeholder — in a real setup this would:
-    # 1. Connect to Azure AKS via kubectl
-    # 2. Update the Deployment image tag to $CI_COMMIT_SHORT_SHA
-    # 3. Kubernetes would then rolling-restart the pods
-    - echo "Deploy stage - image is ready in registry"
-    - echo "Next step: kubectl set image deployment/api api=<IMAGE_API>"
-
+    - echo "Image $IMAGE_API pushed to registry"
+    - echo "Run kubectl set image deployment/api api=$IMAGE_API to deploy"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-
-  # Manual trigger — don't deploy automatically, require a click in GitLab UI
-  when: manual
+      when: manual
