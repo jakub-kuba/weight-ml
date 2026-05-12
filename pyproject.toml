@@ -26,7 +26,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-select = ["E", "F", "I"]
+lint.select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

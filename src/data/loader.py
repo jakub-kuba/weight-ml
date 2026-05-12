@@ -5,9 +5,9 @@ Single responsibility: this is the only module that knows where data
 comes from and how to clean it. Everything else receives ready DataFrames.
 """
 
-import pandas as pd
 from datetime import datetime, timedelta
 
+import pandas as pd
 
 SHEET_ID = "1VurJODWndk26VfyNd6IDgXsvX7uR1A_IxhTA4xcGRco"
 SHEET_GID = "0"

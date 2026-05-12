@@ -6,17 +6,16 @@ a full history: when you trained, what the metrics were, what parameters
 were used. This is the core of MLOps: reproducibility and auditability.
 """
 
-import numpy as np
 import mlflow
 import mlflow.sklearn
-from sklearn.linear_model import LinearRegression
+import numpy as np
+import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from xgboost import XGBRegressor
-import pandas as pd
 
 from src.data.loader import TEST_SIZE
-
 
 MONTHLY_FEATURES = ["Last_Day_Weight", "Weight_Change", "Weight", "Rolling_3m"]
 WEEKLY_FEATURES = ["Last_Day_Weight", "Weight_Change", "Weight", "Rolling_4w"]
@@ -112,7 +111,8 @@ def train_and_log(
             metrics = compute_metrics(y_test.values, y_pred, prev_vals)
 
             # Log parameters and metrics — visible later in MLflow UI
-            mlflow.log_params(model.get_params() if hasattr(model, "get_params") else {})
+            params = model.get_params() if hasattr(model, "get_params") else {}
+            mlflow.log_params(params)
             mlflow.log_metrics(metrics)
             mlflow.sklearn.log_model(model, name=name)
 

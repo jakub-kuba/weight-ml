@@ -6,6 +6,7 @@ FastAPI therefore doesn't need to know how models were trained.
 """
 
 import pandas as pd
+
 from src.models.trainer import MONTHLY_FEATURES, WEEKLY_FEATURES
 
 

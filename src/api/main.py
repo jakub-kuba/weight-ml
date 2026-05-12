@@ -11,11 +11,11 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from src.data.loader import get_monthly_data, get_weekly_data, get_latest_weekly_input
-from src.models.trainer import train_and_log, MONTHLY_FEATURES, WEEKLY_FEATURES
+from src.data.loader import get_latest_weekly_input, get_monthly_data, get_weekly_data
 from src.models.predictor import predict_next_month, predict_next_week
+from src.models.trainer import MONTHLY_FEATURES, WEEKLY_FEATURES, train_and_log
 
 # Suppress noisy MLflow warnings that are irrelevant in this context:
 # - pickle serialization warning (we trust our own models)
