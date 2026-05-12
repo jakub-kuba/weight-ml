@@ -11,6 +11,8 @@ variables:
 # Stage 1: test — runs on every push
 # ---------------------------------------------------------------------------
 test:
+  tags:
+    - saas-linux-small-amd64
   stage: test
   image: python:3.12-slim
   before_script:
@@ -28,6 +30,8 @@ test:
 # Stage 2: build — only on main branch and merge requests
 # ---------------------------------------------------------------------------
 build-api:
+  tags:
+    - saas-linux-small-amd64
   stage: build
   image: docker:24
   services:
@@ -43,6 +47,8 @@ build-api:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 build-dashboard:
+  tags:
+    - saas-linux-small-amd64
   stage: build
   image: docker:24
   services:
@@ -61,6 +67,8 @@ build-dashboard:
 # Stage 3: deploy — manual trigger on main branch
 # ---------------------------------------------------------------------------
 deploy:
+  tags:
+    - saas-linux-small-amd64
   stage: deploy
   image: alpine:latest
   script:
