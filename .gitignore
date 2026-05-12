@@ -37,4 +37,12 @@ uv.lock  # opcjonalnie - często commituje się lock file
 
 # OS
 .DS_Store
-Thumbs.db
+Thumbs.dbmlruns/
+mlartifacts/
+
+
+notes/
+
+mlflow.db
+
+mlruns/
