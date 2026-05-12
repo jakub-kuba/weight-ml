@@ -19,7 +19,8 @@ import streamlit as st
 
 from src.data.loader import get_monthly_data, get_weekly_data
 
-API_BASE = "http://localhost:8000"
+import os
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 MLFLOW_EXPERIMENT_MONTHLY = "weight-monthly"
 MLFLOW_EXPERIMENT_WEEKLY = "weight-weekly"
 

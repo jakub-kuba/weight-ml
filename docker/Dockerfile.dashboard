@@ -1,0 +1,35 @@
+# Same two-stage pattern as Dockerfile.api.
+# Streamlit is a heavier dependency so the build separation matters even more.
+FROM python:3.12-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:0.5.4 /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+# =============================================================================
+FROM python:3.12-slim AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /app/.venv /app/.venv
+
+# Dashboard needs src/ for loader.py (historical data charts)
+COPY src/ ./src/
+COPY dashboard/ ./dashboard/
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"
+
+# --server.address 0.0.0.0: same as uvicorn — listen on all interfaces
+# --server.headless true: disable the "open browser" prompt in container
+CMD ["streamlit", "run", "dashboard/app.py", \
+     "--server.address", "0.0.0.0", \
+     "--server.port", "8501", \
+     "--server.headless", "true"]

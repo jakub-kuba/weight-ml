@@ -1,0 +1,65 @@
+# =============================================================================
+# Stage 1: builder
+# =============================================================================
+# We use a two-stage build. This stage installs ALL dependencies (including
+# dev tools like uv itself). The final image will only copy the installed
+# packages — not uv, not cache, not build artifacts. Result: smaller image.
+FROM python:3.12-slim AS builder
+
+# Install uv — the same package manager we use locally.
+# We pin the version so the build is reproducible.
+COPY --from=ghcr.io/astral-sh/uv:0.5.4 /uv /usr/local/bin/uv
+
+# Set workdir inside the container. All subsequent commands run here.
+WORKDIR /app
+
+# Copy dependency files first — before the source code.
+# Why? Docker caches each layer. If we copy source code first, any code change
+# would invalidate the dependency cache and force a full reinstall.
+# This way dependencies are reinstalled only when pyproject.toml changes.
+COPY pyproject.toml uv.lock ./
+
+# Install production dependencies into /app/.venv
+# --frozen: use exact versions from uv.lock (reproducible builds)
+# --no-dev: skip dev dependencies (pytest, ruff etc.) — not needed in prod
+# --no-install-project: don't install our own package yet, just dependencies
+RUN uv sync --frozen --no-dev --no-install-project
+
+# =============================================================================
+# Stage 2: runtime
+# =============================================================================
+# Fresh minimal image — no uv, no build cache, just Python + our app.
+FROM python:3.12-slim AS runtime
+
+WORKDIR /app
+
+# Copy the virtual environment from the builder stage.
+# This is the key trick of multi-stage builds: we get all installed packages
+# without carrying over the build tooling.
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application source code.
+COPY src/ ./src/
+COPY main.py ./
+
+# Make the venv's Python the default — so 'python' and 'uvicorn' resolve
+# to our venv without needing 'source activate'.
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Document which port the app listens on.
+# This is metadata only — it doesn't actually open the port.
+# The actual binding happens in docker-compose or Kubernetes Service.
+EXPOSE 8000
+
+# Health check — Docker will call this every 30s.
+# If it fails 3 times in a row, the container is marked unhealthy.
+# Kubernetes uses /health for liveness probes separately.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+# Default command to start the API server.
+# --host 0.0.0.0: listen on all interfaces (not just localhost)
+# --port 8000: explicit port
+# Workers are intentionally left at 1 — the model lives in memory and
+# multiple workers would each load their own copy, wasting RAM.
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

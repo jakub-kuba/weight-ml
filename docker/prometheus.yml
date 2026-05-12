@@ -1,0 +1,11 @@
+# Prometheus configuration — defines what to scrape and how often.
+global:
+  scrape_interval: 15s        # pull metrics every 15 seconds
+  evaluation_interval: 15s    # evaluate alerting rules every 15 seconds
+
+scrape_configs:
+  - job_name: "weight-api"
+    # Inside Docker network, 'api' resolves to the FastAPI container.
+    static_configs:
+      - targets: ["api:8000"]
+    metrics_path: "/metrics"

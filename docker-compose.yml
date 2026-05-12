@@ -1,0 +1,90 @@
+# docker-compose.yml — local development and demo environment.
+#
+# Starts four services:
+#   api        — FastAPI ML service (port 8000)
+#   dashboard  — Streamlit UI (port 8501)
+#   prometheus — metrics scraper (port 9090)
+#   grafana    — metrics visualization (port 3000)
+#
+# Usage:
+#   docker compose up --build     # first run, builds images
+#   docker compose up             # subsequent runs
+#   docker compose down           # stop and remove containers
+#   docker compose down -v        # also remove volumes (clears Grafana data)
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # FastAPI — the ML backend
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .                        # build context = project root
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"                     # host:container
+    volumes:
+      # Mount mlruns so MLflow data persists across container restarts.
+      # Without this, every restart would lose all experiment history.
+      - mlruns:/app/mlruns
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s               # give the model time to train on startup
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Streamlit dashboard — the UI
+  # ---------------------------------------------------------------------------
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      # Tell the dashboard where the API is — inside Docker network,
+      # services talk to each other by service name, not localhost.
+      API_BASE: "http://api:8000"
+    depends_on:
+      api:
+        condition: service_healthy     # wait for API to be ready before starting
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — scrapes /metrics from the API every 15 seconds
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Grafana — visualizes Prometheus metrics
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin   # default password, change in prod
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+# Named volumes — data persists across 'docker compose down' (but not 'down -v')
+volumes:
+  mlruns:
+  prometheus_data:
+  grafana_data:
