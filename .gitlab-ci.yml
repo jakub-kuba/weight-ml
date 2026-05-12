@@ -110,8 +110,8 @@ deploy:
     # 1. Connect to Azure AKS via kubectl
     # 2. Update the Deployment image tag to $CI_COMMIT_SHORT_SHA
     # 3. Kubernetes would then rolling-restart the pods
-    - echo "Deploy stage — image $IMAGE_API is ready in registry"
-    - echo "Next step: kubectl set image deployment/api api=$IMAGE_API"
+    - echo "Deploy stage - image is ready in registry"
+    - echo "Next step: kubectl set image deployment/api api=<IMAGE_API>"
 
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
