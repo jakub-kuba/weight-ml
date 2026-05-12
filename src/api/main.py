@@ -5,17 +5,24 @@ On startup the app trains all models once and keeps them in memory.
 Subsequent requests to /predict/* are served instantly without retraining.
 """
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 from src.data.loader import get_monthly_data, get_weekly_data, get_latest_weekly_input
 from src.models.trainer import train_and_log, MONTHLY_FEATURES, WEEKLY_FEATURES
 from src.models.predictor import predict_next_month, predict_next_week
 
+# Suppress noisy MLflow warnings that are irrelevant in this context:
+# - pickle serialization warning (we trust our own models)
+# - pip version resolution failure (uv project, pip not used)
+# - uv/environment detection info logs
+for _logger in ("mlflow.sklearn", "mlflow.utils.environment", "mlflow.utils.uv_utils"):
+    logging.getLogger(_logger).setLevel(logging.ERROR)
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics
