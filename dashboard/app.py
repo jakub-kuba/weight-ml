@@ -1,28 +1,26 @@
 """
 Streamlit dashboard — weight prediction UI.
 
-Consumes the FastAPI service for predictions and MLflow for model metrics.
-The dashboard does not touch models or data directly — it only calls the API.
-This separation of concerns means the UI can be deployed independently.
+Consumes the FastAPI service for predictions and model metrics.
+The dashboard does not touch models, data, or MLflow directly —
+it only calls the API. This separation of concerns means the UI
+can be deployed independently from the ML backend.
 """
 
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import requests
-import mlflow
-import pandas as pd
 import altair as alt
+import pandas as pd
+import requests
 import streamlit as st
 
 from src.data.loader import get_monthly_data, get_weekly_data
 
-import os
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
-MLFLOW_EXPERIMENT_MONTHLY = "weight-monthly"
-MLFLOW_EXPERIMENT_WEEKLY = "weight-weekly"
 
 
 # ---------------------------------------------------------------------------
@@ -45,30 +43,30 @@ def fetch_predictions(endpoint: str) -> dict | None:
 
 
 @st.cache_data(ttl=300)
-def fetch_model_metrics(experiment_name: str) -> pd.DataFrame:
-    """Fetch the latest run metrics for each model from MLflow."""
-    client = mlflow.tracking.MlflowClient()
+def fetch_model_metrics() -> dict:
+    """Fetch model metrics from FastAPI /metrics/models endpoint."""
     try:
-        experiment = client.get_experiment_by_name(experiment_name)
-        if experiment is None:
-            return pd.DataFrame()
-        runs = client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            order_by=["start_time DESC"],
-            max_results=3,
-        )
-        rows = []
-        for run in runs:
-            rows.append({
-                "Model": run.info.run_name.replace("_", " ").title(),
-                "MAE (kg)": round(run.data.metrics.get("mae", 0), 3),
-                "RMSE (kg)": round(run.data.metrics.get("rmse", 0), 3),
-                "R²": round(run.data.metrics.get("r2", 0), 3),
-                "Dir. Acc": f"{run.data.metrics.get('directional_accuracy', 0):.0%}",
-            })
-        return pd.DataFrame(rows)
+        r = requests.get(f"{API_BASE}/metrics/models", timeout=5)
+        r.raise_for_status()
+        return r.json()
     except Exception:
+        return {}
+
+
+def metrics_to_df(data: list) -> pd.DataFrame:
+    """Convert list of metric dicts to a display DataFrame."""
+    if not data:
         return pd.DataFrame()
+    rows = []
+    for item in data:
+        rows.append({
+            "Model": item["model"].replace("_", " ").title(),
+            "MAE (kg)": item["mae"],
+            "RMSE (kg)": item["rmse"],
+            "R²": item["r2"],
+            "Dir. Acc": f"{item['directional_accuracy']:.0%}",
+        })
+    return pd.DataFrame(rows)
 
 
 @st.cache_data(ttl=300)
@@ -96,7 +94,11 @@ def weight_chart(df: pd.DataFrame, x_col: str, color: str) -> alt.Chart:
         .mark_line(color=color, strokeWidth=2)
         .encode(
             x=alt.X(x_col, title="Date"),
-            y=alt.Y("Weight:Q", title="Weight (kg)", scale=alt.Scale(domain=[y_min, y_max])),
+            y=alt.Y(
+                "Weight:Q",
+                title="Weight (kg)",
+                scale=alt.Scale(domain=[y_min, y_max]),
+            ),
             tooltip=[x_col, alt.Tooltip("Weight:Q", format=".2f")],
         )
         .properties(height=300)
@@ -108,9 +110,12 @@ def weight_chart(df: pd.DataFrame, x_col: str, color: str) -> alt.Chart:
 # Page config
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="Weight Tracker", page_icon="⚖️", layout="wide")
+st.set_page_config(
+    page_title="Weight Tracker",
+    page_icon="⚖️",
+    layout="wide",
+)
 
-# Limit content width to 1100px — wide layout but not stretched to full screen
 st.markdown(
     """
     <style>
@@ -181,19 +186,21 @@ st.divider()
 # --- Section 3: Model metrics -----------------------------------------------
 st.header("Model performance")
 
+all_metrics = fetch_model_metrics()
+
 tab_m, tab_w = st.tabs(["Monthly models", "Weekly models"])
 
 with tab_m:
-    df_m = fetch_model_metrics(MLFLOW_EXPERIMENT_MONTHLY)
+    df_m = metrics_to_df(all_metrics.get("weight-monthly", []))
     if df_m.empty:
-        st.info("No MLflow runs found.")
+        st.info("No metrics found. Run the API first.")
     else:
         st.dataframe(df_m.set_index("Model"), width="stretch")
 
 with tab_w:
-    df_w = fetch_model_metrics(MLFLOW_EXPERIMENT_WEEKLY)
+    df_w = metrics_to_df(all_metrics.get("weight-weekly", []))
     if df_w.empty:
-        st.info("No MLflow runs found.")
+        st.info("No metrics found. Run the API first.")
     else:
         st.dataframe(df_w.set_index("Model"), width="stretch")
 

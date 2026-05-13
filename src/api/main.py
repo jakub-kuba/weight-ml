@@ -11,11 +11,11 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-from src.data.loader import get_latest_weekly_input, get_monthly_data, get_weekly_data
+from src.data.loader import get_monthly_data, get_weekly_data, get_latest_weekly_input
+from src.models.trainer import train_and_log, MONTHLY_FEATURES, WEEKLY_FEATURES
 from src.models.predictor import predict_next_month, predict_next_week
-from src.models.trainer import MONTHLY_FEATURES, WEEKLY_FEATURES, train_and_log
 
 # Suppress noisy MLflow warnings that are irrelevant in this context:
 # - pickle serialization warning (we trust our own models)
@@ -150,3 +150,41 @@ def predict_weekly():
 def metrics():
     """Prometheus metrics endpoint — scraped by Prometheus every 15s."""
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/metrics/models")
+def model_metrics():
+    """
+    Return latest training metrics for all models from MLflow.
+    Used by the Streamlit dashboard — avoids direct filesystem access to MLflow.
+    """
+    import mlflow
+
+    result = {}
+    for experiment_name in ("weight-monthly", "weight-weekly"):
+        client = mlflow.tracking.MlflowClient()
+        experiment = client.get_experiment_by_name(experiment_name)
+        if experiment is None:
+            result[experiment_name] = []
+            continue
+
+        runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            order_by=["start_time DESC"],
+            max_results=3,
+        )
+
+        result[experiment_name] = [
+            {
+                "model": run.info.run_name,
+                "mae": round(run.data.metrics.get("mae", 0), 3),
+                "rmse": round(run.data.metrics.get("rmse", 0), 3),
+                "r2": round(run.data.metrics.get("r2", 0), 3),
+                "directional_accuracy": round(
+                    run.data.metrics.get("directional_accuracy", 0), 3
+                ),
+            }
+            for run in runs
+        ]
+
+    return result
